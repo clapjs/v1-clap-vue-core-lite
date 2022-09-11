@@ -104,6 +104,7 @@ export default {
         };
     },
     created() {
+        console.log(process.env.IS_ELECTRON);
         document.title = '系统登录';
         if (this.user) {
             this.getUserOrgans(this.user);
@@ -114,9 +115,6 @@ export default {
     },
     computed: {
         ...mapGetters(['user']),
-        electron() {
-            return !!this.$electron
-        }
     },
     methods: {
         ...mapActions(['Logout', 'SetUser', 'SetToken', 'SetGroup', 'SetOrgan', 'ToggleMenu']),
@@ -124,7 +122,7 @@ export default {
             user.userCode = user.userCode.trim();
             user.userPwd = user.userPwd.trim();
             this.doLoginUser = user;
-            const result = await this.$clap.http.post(this.$config.url.login, user);
+            const result = await this.$clap.http.post(this.$clap.config.url.login, user);
             if (result.data.error.code === '0') {
                 this.SetUser(result.data.record);
                 await this.getUserOrgans(result.data.record._id);
@@ -132,7 +130,7 @@ export default {
             }
         },
         async doRegister(user) {
-            const result = await this.$clap.http.post(this.$config.url.register, user);
+            const result = await this.$clap.http.post(this.$clap.config.url.register, user);
             if (result.data.error.code === '0') {
                 this.$confirm({
                     title: '确认',
@@ -152,7 +150,7 @@ export default {
                 user.userCode = this.doLoginUser.userCode
                 user.userPwd = this.doLoginUser.userPwd
             }
-            const result = await this.$clap.http.post(this.$config.url.changePwd, user);
+            const result = await this.$clap.http.post(this.$clap.config.url.changePwd, user);
             if (result.data.error.code === '0') {
                 this.$success({
                     title: '密码修改成功,请重新登录!', onOk: () => {
@@ -164,7 +162,7 @@ export default {
         async doRegisterOrgan() {
             this.$refs.form.validate(async (valid) => {
                 if (valid) {
-                    const result = await this.$clap.http.post(this.$config.url.registerOrgan, {
+                    const result = await this.$clap.http.post(this.$clap.config.url.registerOrgan, {
                         ...this.form,
                         idUser: this.user._id
                     });

@@ -1,2 +1,2 @@
-import Minimize from './/Minimize'
-export default Minimize
+import CMinimize from './CMinimize'
+export default CMinimize

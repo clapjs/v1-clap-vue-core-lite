@@ -1,2 +1,2 @@
-import Exit from './/Exit'
-export default Exit
+import CExit from './CExit'
+export default CExit
