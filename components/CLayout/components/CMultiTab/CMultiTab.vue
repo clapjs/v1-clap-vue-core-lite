@@ -1,6 +1,5 @@
 <template>
-    <a-tabs hideAdd :activeKey="menu.key" type="editable-card" @edit="onTabEdit" @change="onTabChange"
-            :tabBarStyle="{margin: 0}">
+    <a-tabs hideAdd :activeKey="menu.key" type="editable-card" @edit="onTabEdit" @change="onTabChange" :tabBarStyle="{margin: 0}">
         <a-tab-pane v-for="pane in activePanes" :tab="pane.title" :key="pane.key" :closable="pane.closable"></a-tab-pane>
         <a-row type="flex" justify="center" align="middle" slot="tabBarExtraContent">
             <a-dropdown placement="bottomRight" @getPopupContainer="()=>document.body">
@@ -37,9 +36,9 @@
             return {
                 activePanes: [
                     {
-                        key: 'devDash',
+                        key: 'dash',
                         title: '首页',
-                        routeName: 'devDash',
+                        routeName: 'dash',
                         closable: false
                     }
                 ]
