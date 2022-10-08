@@ -32,19 +32,26 @@
 
     export default {
         name: "MultiTab",
-        data() {
-            return {
-                activePanes: [
-                    {
+        props:{
+            defaultActivePane: {
+                type: Object,
+                default: ()=>{
+                    return {
                         key: 'dash',
                         title: '首页',
                         routeName: 'dash',
                         closable: false
                     }
-                ]
+                }
+            },
+        },
+        data() {
+            return {
+                activePanes: []
             }
         },
         created() {
+            this.setDefaultActivePane(this.defaultActivePane);
             if (this.menu.key&&this.getTabIndex(this.menu.key) < 0) {
                 this.activePanes.push(this.menu)
             }
@@ -54,6 +61,12 @@
                 if (this.getTabIndex(key) < 0) {
                     this.activePanes.push(this.menu)
                 }
+            },
+            defaultActivePane:{
+                handler(pane){
+                    this.setDefaultActivePane(pane)
+                },
+                deep: true
             },
             activePanes:{
                 handler(value){
@@ -67,6 +80,9 @@
         },
         methods: {
             ...mapActions(['ToggleMenu']),
+            setDefaultActivePane(pane){
+                this.activePanes[0]=pane;
+            },
             getTabIndex(key) {
                 return this.activePanes.map(item => {
                     return item.key;

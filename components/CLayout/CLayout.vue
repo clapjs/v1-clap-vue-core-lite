@@ -16,9 +16,19 @@
                     <c-exit style="margin-left: 12px"></c-exit>
                 </div>
             </a-layout-header>
-            <a-layout-content :style="{ margin: '12px', background: '#fff', minHeight: innerHeight,overflow:'auto'}">
-                <router-view/>
-            </a-layout-content>
+            <a-layout>
+                <a-layout>
+                    <a-layout-header style="background: #f3f3f3; padding: 12px;" v-if="multiTab">
+                        <c-multi-tab></c-multi-tab>
+                    </a-layout-header>
+                    <a-layout-content :style="{ margin: multiTab?'0 12px 12px 12px':'12px', background: '#fff',maxHeight:innerHeight,overflow:'auto' }">
+                        <keep-alive v-if="multiTab">
+                            <router-view/>
+                        </keep-alive>
+                        <router-view v-else/>
+                    </a-layout-content>
+                </a-layout>
+            </a-layout>
         </a-layout>
     </a-layout>
 </template>
@@ -43,7 +53,7 @@ export default {
         };
     },
     computed: {
-        ...mapGetters(["menu","user",'theme']),
+        ...mapGetters(["menu","user",'theme','multiTab']),
     },
     async created() {
         window.onresize = ()=>{
@@ -53,7 +63,7 @@ export default {
     methods: {
         ...mapActions(['ToggleMenu']),
         async menuSelect(menu) {
-            const activeMenu = this.$clap.helper.getTreeNode(this.menus, menu.key);
+            const activeMenu = this.$clap.helper.getTreeNode(this.$clap.config.menu, menu.key);
             activeMenu.keyPath = menu.keyPath;
             this.ToggleMenu(activeMenu);
         }

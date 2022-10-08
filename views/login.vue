@@ -70,7 +70,10 @@
 </template>
 <script>
 import {mapActions, mapGetters} from "vuex";
-import {CLogin, CRegister, CResetPwd} from "../components/CSign"
+
+import CLogin from "../components/CLayout/components/CLogin"
+import CRegister from "../components/CLayout/components/CRegister"
+import CResetPwd from "../components/CLayout/components/CResetPwd"
 
 export default {
     components: {CLogin, CRegister, CResetPwd},
@@ -100,11 +103,9 @@ export default {
                 organName: [{required: true, validator: validateOrganNamePass, trigger: 'change'}],
             },
             organUsers: [],
-            userType: [],
         };
     },
     created() {
-        console.log(process.env.IS_ELECTRON);
         document.title = '系统登录';
         if (this.user) {
             this.getUserOrgans(this.user);
@@ -117,7 +118,7 @@ export default {
         ...mapGetters(['user']),
     },
     methods: {
-        ...mapActions(['Logout', 'SetUser', 'SetToken', 'SetGroup', 'SetOrgan', 'ToggleMenu']),
+        ...mapActions(['Logout', 'SetUser','SetRole', 'SetToken', 'SetGroup', 'SetOrgan', 'ToggleMenu']),
         async doLogin(user) {
             user.userCode = user.userCode.trim();
             user.userPwd = user.userPwd.trim();
@@ -186,7 +187,8 @@ export default {
         },
         goWelcome(organUser) {
             this.SetToken(organUser._id);
-            this.SetGroup(organUser.idOrgan.idGroupOrgan);
+            this.SetRole(organUser.userType);
+            this.SetOrgan(organUser.idOrgan._id);
             this.ToggleMenu({key: 'dash', title: '首页', routeName: 'dash', controlType: 'Group', idOrgan: '', organs: [], closable: false});
         }
     }
