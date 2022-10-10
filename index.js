@@ -53,7 +53,7 @@ import {
     Calendar,
     PageHeader,
     Result,
-
+    Statistic
 } from 'ant-design-vue'
 import AModal from "./antd/Modal/Modal";
 
@@ -131,6 +131,7 @@ const install = function (Vue, Config) {
     Vue.use(Calendar);
     Vue.use(PageHeader);
     Vue.use(Result);
+    Vue.use(Statistic)
     Vue.component('a-modal',AModal);
     Vue.prototype.$message = message;
     Vue.prototype.$confirm = Modal.confirm;
