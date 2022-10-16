@@ -11,12 +11,12 @@
             <slot name="extra"></slot>
             <a-input-search allowClear  placeholder="请输入关键字" enter-button style="width: 200px" @search="onSearch"/>
         </a-space>
-        <c-table :value="data" v-if="listCfg.mode==='Table'||listCfg.mode==='Tree'" :mode="listCfg.mode" :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :columns="listColumns" :rowKey="rowKey" :count="count" :loading="loading" :pagination="pagination" @change="onChange" @buttonClick="onButtonClick" :customRow='customRow'/>
+        <c-table :value="data" v-if="listCfg.mode==='Table'||listCfg.mode==='Tree'" :mode="listCfg.mode" :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :columns="listColumns" :count="count" :loading="loading" :pagination="pagination" @change="onChange" @buttonClick="onButtonClick" :customRow='customRow'/>
         <c-list :value="data" v-else-if="listCfg.mode==='List'" :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :icon="listCfg.icon" :grid="listCfg.grid" :replaceFields="listCfg.replaceFields" :count="count" :loading="loading" :pagination="pagination" @change="onChange" @buttonClick="onButtonClick"/>
-        <a-modal v-if="editCfg.mode==='Modal'" :title="editData._id?'修改'+name:'新增'+name" v-model="visible" :width="editCfg.width" :maskClosable="false" destroyOnClose @ok="conserve(editData)" @cancel="resetForm">
+        <a-modal destroyOnClose v-if="editCfg.mode==='Modal'" :title="editData._id?'修改'+name:'新增'+name" v-model="visible" :width="editCfg.width" :maskClosable="false" destroyOnClose @ok="conserve(editData)" @cancel="resetForm">
             <c-form ref="form" v-model="editData" :columns="editColumns"/>
         </a-modal>
-        <a-drawer v-else :title="editData._id?'修改'+name:'新增'+name" placement="right" :visible="visible" @close="resetForm" :width="editCfg.width">
+        <a-drawer destroyOnClose v-else :title="editData._id?'修改'+name:'新增'+name" placement="right" :visible="visible" @close="resetForm" :width="editCfg.width">
             <c-form ref="form" v-model="editData" :columns="editColumns"/>
             <div class="drawer-footer">
                 <a-button :style="{ marginRight: '8px' }" @click="resetForm">取消</a-button>
@@ -95,12 +95,6 @@ export default {
         customRow: {
             type: Function,
         },
-        rowKey: {
-            type: String,
-            default: () => {
-                return 'key'
-            }
-        },
         beforeInitCreate: {
             type: [Boolean, Function],
             default: () => {
@@ -146,16 +140,11 @@ export default {
             editData: {},
         }
     },
-    created() {
-        this.setDefaultQuery(this.defaultQuery);
-    },
-    mounted() {
-        this.loadData();
-    },
     watch: {
         defaultQuery: {
             async handler(query) {
-                this.setDefaultQuery(query)
+                this.setDefaultQuery(query);
+                !this.getButtonDisabled('loadData',{})&&await this.loadData();
             },
             deep: true //true 深度监听
         },
@@ -256,13 +245,19 @@ export default {
             }
         },
     },
+    created() {
+        this.setDefaultQuery(this.defaultQuery);
+    },
+    mounted() {
+        !this.getButtonDisabled('loadData',{})&&this.loadData();
+    },
     methods: {
         setFormData(value) {
             this.editData = value;
         },
         setDefaultQuery(query) {
             if(!query)return;
-            this.query = {...this.query, ...query}
+            this.query = {...this.query, ...query};
         },
         getButtonDisabled(event, record) {
             if (this.buttonsDisabled.hasOwnProperty(event)) {

@@ -1,10 +1,15 @@
 <template>
-    <a-form-model ref="form" :model="data" :rules="rules" :label-col="{span: 4}" :wrapper-col="{span: 20}" labelAlign="left">
+    <a-form-model ref="form" :model="data" :rules="rules" labelAlign="left">
         <a-row :gutter="12" type="flex" justify="start">
             <a-col :span="column.span?column.span:24" v-for="column of columns" :key="column.field" v-if="getColumnVisible(column)">
-                <a-form-model-item  :label="column.name" :prop="column.field">
+                <a-form-model-item v-if="column.widget!=='Tabs'"  :label="column.name" :prop="column.field" :label-col="{span:column.hasOwnProperty('labelCol')?column.labelCol:4}" :wrapper-col="{span: column.hasOwnProperty('wrapperCol')?column.wrapperCol:20}">
                     <c-widget :value="data[column.field]" :widget="column.widget" :widget-config="getWidgetConfig(column)" :disabled="getColumnDisabled(column)" @change="(val)=>handleColumnChange(val,column)"/>
                 </a-form-model-item>
+                <a-tabs :default-active-key="0" v-else>
+                    <a-tab-pane :key="index" :tab="childColumn.name" v-for="(childColumn,index) of column.widgetConfig.tabs">
+                        <c-form v-model="data" :columns="childColumn.columns"></c-form>
+                    </a-tab-pane>
+                </a-tabs>
             </a-col>
         </a-row>
     </a-form-model>

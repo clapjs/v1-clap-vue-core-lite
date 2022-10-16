@@ -1,12 +1,18 @@
 <template>
-    <a-table :columns="currentColumns" tableLayout="fixed" :rowKey="rowKey" :dataSource="currentValue" size="small" :pagination="editable?false:currentPagination" :loading="loading" @change="(pagination, filters, sorter)=>$emit('change',pagination, filters, sorter)" :customHeaderRow='customHeaderRow' :customRow='customRow'>
+    <a-table :id="id" :columns="currentColumns" tableLayout="fixed" :scroll="scroll" rowKey="_key" defaultExpandAllRows :dataSource="dataSource" size="small" :pagination="editable?false:currentPagination" :loading="loading" @change="(pagination, filters, sorter)=>$emit('change',pagination, filters, sorter)" :customHeaderRow='customHeaderRow' :customRow='customRow'>
+        <template slot="sortActions" slot-scope="text, record, index">
+            <a-icon type="ordered-list" class="c-drag"/>
+        </template>
         <template slot="editActions" slot-scope="text, record, index">
-            <a-tooltip><template slot="title"> 复制 </template><a-icon type="copy" style="margin-right: 12px" @click="handleCopy(record, index)" /></a-tooltip>
-            <a-tooltip><template slot="title"> 增行 </template><a-icon type="plus" style="margin-right: 12px" @click="handleAdd(record, index)" /></a-tooltip>
-            <a-tooltip><template slot="title"> 删行 </template><a-icon type="minus"  @click="handleRemove(record, index)" v-if="currentValue.length > 1" /></a-tooltip>
+            <a-space>
+                <a-tooltip><template slot="title"> 复制 </template><a-button icon="copy" size="small" :disabled="getActionDisabled('copy',record)"  @click="handleCopy(record)" /></a-tooltip>
+                <a-tooltip><template slot="title"> 增行 </template><a-button icon="plus" size="small" :disabled="getActionDisabled('add',record)" @click="handleAdd(record)" /></a-tooltip>
+                <a-tooltip><template slot="title"> 删行 </template><a-button icon="minus" size="small" :disabled="getActionDisabled('remove',record)"  @click="handleRemove(record)" /></a-tooltip>
+                <a-tooltip v-if="mode==='Tree'"><template slot="title"> 增行(子节点) </template><a-button icon="plus-circle" size="small" :disabled="getActionDisabled('addChild',record)"  @click="handleAddChild(record)" /></a-tooltip>
+            </a-space>
         </template>
         <template v-for="(column,columnIndex) in columns" :slot="column.field + 'Render'+columnIndex" slot-scope="text, record, index">
-            <c-widget v-if="editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)" @change="(val)=>handleChange(val,column.field,{text, record, index})"></c-widget>
+            <c-widget v-if="editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)" @change="(val)=>handleChange(val,column.field,record)"></c-widget>
             <c-widget-display v-else-if="!editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)"></c-widget-display>
         </template>
         <template slot="actions" slot-scope="value,record,index">
@@ -21,6 +27,8 @@
 </template>
 
 <script>
+import Sortable from 'sortablejs';
+
 import CWidgetDisplay from "../CWidgetDisplay/CWidgetDisplay";
 export default {
     name: "CTable",
@@ -50,6 +58,12 @@ export default {
                 return {}
             }
         },
+        actionsDisabled: {
+            type: Object,
+            default() {
+                return {}
+            }
+        },
         loading:{
             type:Boolean,
             default(){
@@ -68,12 +82,6 @@ export default {
                 return false
             }
         },
-        rowKey:{
-            type:String,
-            default:()=>{
-                return 'key'
-            }
-        },
         pagination: {
             type:Object,
             default:()=>{
@@ -88,6 +96,12 @@ export default {
             type:Number,
             default:()=>{
                 return 0
+            }
+        },
+        scroll:{
+            type:[Object],
+            default(){
+                return {}
             }
         },
         customRow: {
@@ -108,6 +122,12 @@ export default {
                 return false
             }
         },
+        beforeAddChild: {
+            type:[Boolean,Function],
+            default:()=>{
+                return false
+            }
+        },
         beforeCopy: {
             type:[Boolean,Function],
             default:()=>{
@@ -123,6 +143,7 @@ export default {
     },
     data() {
         return {
+            id:this.$clap.helper.uuid(),
             currentValue: []
         }
     },
@@ -134,29 +155,26 @@ export default {
             }
         },
         currentColumns(){
-            let columns=[]
-            if(this.mode==='Table'){
+            let columns=[{
+                title: '行号',
+                align: 'center',
+                fixed: 'left',
+                width: 100,
+                customRender: (text, record, index) => {
+                    return index + 1
+                },
+            }];
+            if(this.editable){
                 columns=[{
-                    title: '行号',
-                    align: 'center',
-                    width: 60,
-                    customRender: (text, record, index) => {
-                        return index + 1
-                    },
-                }];
-            }
-            if(this.mode==='Tree'){
-                columns=[{
-                    title: '#',
                     align: 'center',
                     fixed: 'left',
-                    width: 60
-                }]
-            }
-            if(this.editable){
-                columns=[...columns,{
+                    width: 60,
+                    key: 'sortActions',
+                    scopedSlots: {customRender: 'sortActions'},
+                },...columns,{
                     title: '行操作',
                     align: 'center',
+                    width: 150,
                     key: 'editActions',
                     scopedSlots: {customRender: 'editActions'},
                 }]
@@ -184,6 +202,13 @@ export default {
                 })
             }
             return columns;
+        },
+        dataSource(){
+            const data=JSON.parse(JSON.stringify(this.currentValue))
+            if(this.mode==='Tree'){
+                return this.$clap.helper.listToTree(data,0,{idKey:'_key',pIdKey:'p_key'})
+            }
+            return data;
         }
     },
     watch: {
@@ -197,7 +222,28 @@ export default {
     created() {
         this.setCurrentValue(this.value);
     },
+    mounted() {
+        let sortable = Sortable.create(document.getElementById(this.id).getElementsByClassName('ant-table-tbody')[0],{
+            group:'name',
+            sort: true,
+            handle: ".c-drag",
+            dataIdAttr: 'data-row-key',
+            onMove: function (/**Event*/evt) {
+
+            },
+            onEnd: function (/**Event*/evt) {
+                console.log(evt);
+            },
+        });
+        console.log(sortable)
+    },
     methods: {
+        getActionDisabled(event,record){
+            if(this.actionsDisabled.hasOwnProperty(event)){
+                return typeof this.actionsDisabled[event]==='function'?this.actionsDisabled[event](record):this.actionsDisabled[event]
+            }
+            return false
+        },
         getButtonDisabled(event,record){
             if(this.buttonsDisabled.hasOwnProperty(event)){
                 return typeof this.buttonsDisabled[event]==='function'?this.buttonsDisabled[event](record):this.buttonsDisabled[event]
@@ -223,52 +269,75 @@ export default {
             return widgetConfig;
         },
         setCurrentValue(value) {
-            this.currentValue=value;
+            this.currentValue=value.map((item)=>{return this.mode==='Tree'?{...item,_key:item._key?item._key:(item._id?item._id:this.$clap.helper.uuid()),p_key:item.p_key?item.p_key:(item.p_id?item.p_id:0)}:{...item,_key:item._key?item._key:(item._id?item._id:this.$clap.helper.uuid())}});
             if(this.editable&&this.currentValue.length===0){
-                this.currentValue = [{ [this.rowKey]: new Date().getTime() }];
+                this.currentValue = this.mode==='Tree'?[{ _key: this.$clap.helper.uuid(),p_key:0 }]: [{ _key: this.$clap.helper.uuid() }];
             }
             this.handleInput()
         },
         handleInput() {
             this.$emit('input', JSON.parse(JSON.stringify(this.currentValue)));
         },
-        async handleAdd(record, index) {
+        async handleAdd(record) {
+            let Record=this.mode==='Tree'?{ _key: this.$clap.helper.uuid(),p_key:record.p_key }: { _key: this.$clap.helper.uuid() };
+            const index=this.currentValue.findIndex(item=>item._key===record._key)
             if (this.beforeAdd) {
-                const {record:rRecord,index:rIndex}=await this.beforeAdd(record, index);
-                record=rRecord?rRecord:record;
-                index=rIndex?rIndex:index;
+                Record=await this.beforeAdd(Record,{record,index})
             }
-            this.currentValue.splice(index + 1, 0, { [this.rowKey]: new Date().getTime() })
+            if(!Record)return;
+            this.currentValue.splice(index+1, 0, Record)
             this.handleInput()
-            this.$emit('afterAdd',record, index)
+            this.$emit('add',Record)
         },
-        async handleCopy(record, index) {
+        async handleAddChild(record) {
+            let Record=this.mode==='Tree'?{ _key: this.$clap.helper.uuid(),p_key:record._key }: { _key: this.$clap.helper.uuid() };
+            const index=this.currentValue.findIndex(item=>item._key===record._key)
+            if (this.beforeAddChild) {
+                Record=await this.beforeAddChild(Record,{record,index})
+            }
+            if(!Record)return;
+            this.currentValue.splice(index+1, 0, Record)
+            this.handleInput()
+            this.$emit('addChild',Record)
+        },
+        async handleCopy(record) {
+            let Record={...record,_key:this.$clap.helper.uuid()}
+            const index=this.currentValue.findIndex(item=>item._key===record._key)
             if (this.beforeCopy) {
-                const {record:rRecord,index:rIndex}=await this.beforeCopy(record, index);
-                record=rRecord?rRecord:record;
-                index=rIndex?rIndex:index;
+                Record=await this.beforeCopy(Record,{record,index})
             }
-            this.currentValue.splice(index + 1, 0, Object.assign(JSON.parse(JSON.stringify(record)), { [this.rowKey]: new Date().getTime() }))
+            if(!Record)return;
+            this.currentValue.splice(index + 1, 0, Record)
             this.handleInput()
-            this.$emit('afterCopy',record, index)
+            this.$emit('copy',record, index)
         },
-        async handleRemove(record, index) {
+        async handleRemove(record) {
+            if(this.currentValue.length===1){
+                this.$message.error('已经是最后一行数据了！');
+                return;
+            }
+            if(this.mode==='Tree'&&this.currentValue.filter(item=>item.p_key===record._key).length>0){
+                this.$message.error('请先删除子节点！');
+                return;
+            }
+            let Record=record;
+            const index=this.currentValue.findIndex(item=>item._key===record._key)
             if (this.beforeRemove) {
-                const {record:rRecord,index:rIndex}=await this.beforeRemove(record, index);
-                record=rRecord?rRecord:record;
-                index=rIndex?rIndex:index;
+                Record=await this.beforeRemove(record);
             }
-            this.currentValue.splice(index, 1)
+            if(!Record)return;
+            this.currentValue.splice(index, 1);
             this.handleInput()
-            this.$emit('afterRemove',record, index)
+            this.$emit('remove',record, index)
         },
-        handleChange(value, field, scope) {
+        handleChange(value, field, record) {
             clearTimeout(this.timer)
             this.timer = setTimeout(() => {
                 //创建一个定时器，一秒钟执行一次
-                this.currentValue[scope.index][field] = value
+                const index=this.currentValue.findIndex(item=>item._key===record._key)
+                this.currentValue[index][field] = value
                 this.handleInput()
-                this.$emit('change',this.currentValue, value, field, scope)
+                this.$emit('change',this.currentValue, value, field, {record,index})
             }, 100)
         }
     }
