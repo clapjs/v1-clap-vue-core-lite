@@ -71,11 +71,13 @@ import CList from './components/CList'
 import CTable from './components/CTable'
 import CForm from './components/CForm'
 import CEditor from './components/CEditor'
+import CEditorCode from './components/CEditorCode'
 import CUpload from './components/CUpload'
 import CWidget from './components/CWidget'
 import CWidgetDisplay from './components/CWidgetDisplay'
+import {CRefer,Refer} from './components/CRefer'
 
-const components = [CPickerColor,CPickerIcon,CEditor,CUpload,CList,CTable,CCrud,CForm,CWidget,CWidgetDisplay]
+const components = [CPickerColor,CPickerIcon,CEditor,CEditorCode,CUpload,CList,CTable,CCrud,CForm,CRefer,CWidget,CWidgetDisplay]
 
 const install = function (Vue, Config) {
     if (install.installed) return
@@ -151,6 +153,9 @@ const install = function (Vue, Config) {
     Vue.prototype.$clap.moment=moment;
     Vue.prototype.$clap.file=new clap_file(Config.axios);
     Vue.prototype.$clap.helper=clap_helper;
+
+    Vue.prototype.$clap.refer=Refer(Vue);
+
     components.map(component => {
         Vue.component(component.name, component)
     })

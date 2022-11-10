@@ -4,15 +4,15 @@
             <slot name="title"></slot>
             <a-button v-if="buttons.length===0" :type="buttons[0].type" :icon="buttons[0].icon"  @click="onButtonClick(buttons[0].event)" :disabled="getButtonDisabled(buttons[0].event)">{{ buttons[0].name }}</a-button>
             <a-button-group v-else>
-                <a-button v-for="button of buttons" :key="button.event" type="primary" :icon="button.icon" @click="onButtonClick('onButtonClick',button.event)" :disabled="getButtonDisabled(button.event)">{{ button.name }}</a-button>
+                <a-button v-for="button of buttons" :key="button.event" type="primary" :icon="button.icon" @click="onButtonClick('onButtonClick',button.event)" :disabled="getButtonDisabled(button.event,selectedRows)">{{ button.name }}</a-button>
             </a-button-group>
         </a-space>
         <a-space slot="extra">
             <slot name="extra"></slot>
             <a-input-search allowClear  placeholder="请输入关键字" enter-button style="width: 200px" @search="onSearch"/>
         </a-space>
-        <c-table :value="data" v-if="listCfg.mode==='Table'||listCfg.mode==='Tree'" :mode="listCfg.mode" :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :columns="listColumns" :count="count" :loading="loading" :pagination="pagination" @change="onChange" @buttonClick="onButtonClick" :customRow='customRow'/>
-        <c-list :value="data" v-else-if="listCfg.mode==='List'" :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :icon="listCfg.icon" :grid="listCfg.grid" :replaceFields="listCfg.replaceFields" :count="count" :loading="loading" :pagination="pagination" @change="onChange" @buttonClick="onButtonClick"/>
+        <c-table :value="data" v-if="listCfg.mode==='Table'||listCfg.mode==='Tree'" :mode="listCfg.mode"  :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :columns="listColumns" :replaceFields="listCfg.replaceFields" :count="count" :loading="loading" :pagination="pagination" @pagingChange="onPagingChange" @buttonClick="onButtonClick" :customRow='customRow' @selectChange="onSelectChange"/>
+        <c-list :value="data" v-else-if="listCfg.mode==='List'" :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :icon="listCfg.icon" :grid="listCfg.grid" :replaceFields="listCfg.replaceFields" :count="count" :loading="loading" :pagination="pagination" @pagingChange="onPagingChange" @buttonClick="onButtonClick"/>
         <a-modal destroyOnClose v-if="editCfg.mode==='Modal'" :title="editData._id?'修改'+name:'新增'+name" v-model="visible" :width="editCfg.width" :maskClosable="false" destroyOnClose @ok="conserve(editData)" @cancel="resetForm">
             <c-form ref="form" v-model="editData" :columns="editColumns"/>
         </a-modal>
@@ -95,13 +95,13 @@ export default {
         customRow: {
             type: Function,
         },
-        beforeInitCreate: {
+        beforeShowCreate: {
             type: [Boolean, Function],
             default: () => {
                 return false
             }
         },
-        beforeInitModify: {
+        beforeShowModify: {
             type: [Boolean, Function],
             default: () => {
                 return false
@@ -138,12 +138,14 @@ export default {
                 order: '_id',
             },
             editData: {},
+            selectedRowKeys:[],
+            selectedRows:[]
         }
     },
     watch: {
         defaultQuery: {
             async handler(query) {
-                this.setDefaultQuery(query);
+                this.setQuery(query);
                 !this.getButtonDisabled('loadData',{})&&await this.loadData();
             },
             deep: true //true 深度监听
@@ -236,7 +238,7 @@ export default {
             }, ...this.extraRowButtons]
         },
         pagination() {
-            const limit = this.defaultQuery.hasOwnProperty('limit') ? this.defaultQuery.limit : (this.mode === 'Table' ? 10 : 12)
+            const limit = this.defaultQuery.hasOwnProperty('limit') ? this.defaultQuery.limit : (this.listCfg.mode === 'Table' ? 10 : 12)
             return {
                 showSizeChanger: true,
                 showQuickJumper: true,
@@ -246,22 +248,22 @@ export default {
         },
     },
     created() {
-        this.setDefaultQuery(this.defaultQuery);
+        this.setQuery(this.defaultQuery);
     },
     mounted() {
         !this.getButtonDisabled('loadData',{})&&this.loadData();
     },
     methods: {
-        setFormData(value) {
-            this.editData = value;
+        setFormData(cb) {
+            this.editData = JSON.parse(JSON.stringify(typeof cb==='function'?cb(this.editData):cb))
         },
-        setDefaultQuery(query) {
+        setQuery(query) {
             if(!query)return;
             this.query = {...this.query, ...query};
         },
-        getButtonDisabled(event, record) {
+        getButtonDisabled(event, records) {
             if (this.buttonsDisabled.hasOwnProperty(event)) {
-                return typeof this.buttonsDisabled[event] === 'function' ? this.buttonsDisabled[event](record) : this.buttonsDisabled[event]
+                return typeof this.buttonsDisabled[event] === 'function' ? this.buttonsDisabled[event](records) : this.buttonsDisabled[event]
             }
             return false
         },
@@ -277,11 +279,11 @@ export default {
             this[event](record)
         },
         async create() {
-            this.editData = this.beforeInitCreate ? await this.beforeInitCreate() : {};
+            this.editData = this.beforeShowCreate ? await this.beforeShowCreate() : {};
             this.visible = true;
         },
         async modify(record) {
-            this.editData = JSON.parse(JSON.stringify(this.beforeInitModify ? await this.beforeInitModify(record) : record));
+            this.editData = JSON.parse(JSON.stringify(this.beforeShowModify ? await this.beforeShowModify(record) : record));
             this.visible = true;
         },
         async remove(record) {
@@ -292,7 +294,7 @@ export default {
                 content: this.$t('operate.notice.remove'),
                 onOk: async () => {
                     await this[this.core].model(this.model).delete(record._id);
-                    this.$emit('afterRemove', record)
+                    this.$emit('onRemove', record)
                     await this.loadData();
                 }
             });
@@ -301,7 +303,7 @@ export default {
             this.$nextTick(async ()=>{
                 this.loading = true;
                 const {records, count} = await this[this.core].model(this.model).get({params: this.query});
-                this.data = this.listCfg.mode==='Tree'?this.$clap.helper.listToTree(records, 0,{replaceFields:this.listCfg.replaceFields}):records;
+                this.data = records;
                 this.count = count;
                 this.loading = false;
                 this.$emit('loaded', this.data)
@@ -316,7 +318,7 @@ export default {
             }
             await this.loadData()
         },
-        async onChange(pagination, filters, sorter) {
+        async onPagingChange(pagination, filters, sorter) {
             this.query.page = pagination.current;
             if (this.query.limit !== pagination.pageSize) {
                 this.query.limit = pagination.pageSize;
@@ -339,7 +341,7 @@ export default {
                         if (data) {
                             const oldData = await this[this.core].model(this.model).getByID(data._id).then(res => res.records[0])
                             await this[this.core].model(this.model).put(data._id, data);
-                            this.$emit('afterModify', data, oldData);
+                            this.$emit('onModify', data, oldData);
                         }else{
                             return false
                         }
@@ -347,7 +349,7 @@ export default {
                         data = this.beforeCreate ? await this.beforeCreate(data) : data;
                         if (data) {
                             const record = await this[this.core].model(this.model).post(data).then(res => res.records[0]);
-                            this.$emit('afterCreate', record)
+                            this.$emit('onCreate', record ,data)
                         }
                         else{
                             return false
@@ -364,6 +366,11 @@ export default {
             this.$refs.form.resetFields();
             this.visible = false;
         },
+        onSelectChange(selectedRowKeys, selectedRows){
+            this.selectedRowKeys=selectedRowKeys;
+            this.selectedRows=selectedRows;
+            this.$emit('selectChange',this.selectedRowKeys,this.selectedRows)
+        }
     }
 }
 </script>

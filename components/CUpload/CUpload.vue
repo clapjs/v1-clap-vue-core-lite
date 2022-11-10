@@ -70,7 +70,7 @@ export default {
             if(val.length===0){
                 return;
             }
-            const files = await this.$clap.model('sys_file').get({params: {filter: {_id: {$in: this.multiple ? this.value.map(item => item.idFile) : [this.value]}}}}).then(res => res.records)
+            const files = await this.$clap.model('sys_file').get({params: {filter: {_id: {$in: this.multiple ? this.value : [this.value]}}}}).then(res => res.records)
             this.fileList = files.map(item => {
                 return {
                     uid : item._id,
@@ -84,9 +84,7 @@ export default {
             switch (info.file.status) {
                 case 'removed':
                     if (this.multiple) {
-                        const index = this.fileList.map(item => {
-                            return item.idFile
-                        }).findIndex(item => {
+                        const index = this.fileList.findIndex(item => {
                             return item === info.file.uid
                         })
                         this.fileList.splice(index, 1)
@@ -116,11 +114,7 @@ export default {
             }
         },
         handleInput() {
-            const value = this.multiple?this.fileList.map(item=>{
-              return {
-                  idFile:item.uid
-              }
-            }):this.fileList[0].uid;
+            const value = this.multiple?this.fileList.map(item=>item.uid):this.fileList[0].uid;
             this.$emit('change', value)
             this.$emit('input', value)
         }

@@ -1,9 +1,6 @@
 <template>
-    <a-table :id="id" :columns="currentColumns" tableLayout="fixed" :scroll="scroll" rowKey="_key" defaultExpandAllRows :dataSource="dataSource" size="small" :pagination="editable?false:currentPagination" :loading="loading" @change="(pagination, filters, sorter)=>$emit('change',pagination, filters, sorter)" :customHeaderRow='customHeaderRow' :customRow='customRow'>
-        <template slot="sortActions" slot-scope="text, record, index">
-            <a-icon type="ordered-list" class="c-drag"/>
-        </template>
-        <template slot="editActions" slot-scope="text, record, index">
+    <a-table :id="id" :columns="currentColumns" tableLayout="fixed" :scroll="scroll" rowKey="_key" defaultExpandAllRows :dataSource="dataSource" :rowSelection="editable?null:rowSelection" size="small" :pagination="editable?false:currentPagination" :loading="loading" @change="(pagination, filters, sorter)=>$emit('pagingChange',pagination, filters, sorter)" :customHeaderRow='customHeaderRow' :customRow='customRow'>
+        <template slot="leftActions" slot-scope="text, record, index">
             <a-space>
                 <a-tooltip><template slot="title"> 复制 </template><a-button icon="copy" size="small" :disabled="getActionDisabled('copy',record)"  @click="handleCopy(record)" /></a-tooltip>
                 <a-tooltip><template slot="title"> 增行 </template><a-button icon="plus" size="small" :disabled="getActionDisabled('add',record)" @click="handleAdd(record)" /></a-tooltip>
@@ -12,10 +9,10 @@
             </a-space>
         </template>
         <template v-for="(column,columnIndex) in columns" :slot="column.field + 'Render'+columnIndex" slot-scope="text, record, index">
-            <c-widget v-if="editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)" @change="(val)=>handleChange(val,column.field,record)"></c-widget>
+            <c-widget v-if="editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)" @change="(val)=>handleCellChange(val,record,column)"></c-widget>
             <c-widget-display v-else-if="!editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)"></c-widget-display>
         </template>
-        <template slot="actions" slot-scope="value,record,index">
+        <template slot="rightActions" slot-scope="value,record,index">
             <a-dropdown>
                 <a-icon type="ellipsis"/>
                 <a-menu slot="overlay" @click="({key})=>{$emit('buttonClick',JSON.parse(key).event,JSON.parse(key).record)}">
@@ -27,7 +24,6 @@
 </template>
 
 <script>
-import Sortable from 'sortablejs';
 
 import CWidgetDisplay from "../CWidgetDisplay/CWidgetDisplay";
 export default {
@@ -39,6 +35,10 @@ export default {
             default:()=>{
                 return []
             }
+        },
+        disabled:{
+            type:Boolean,
+            default:false
         },
         mode: {
             type: String,
@@ -74,6 +74,16 @@ export default {
             type:Array,
             default:()=>{
                 return []
+            }
+        },
+        replaceFields:{
+            type:Object,
+            default:()=>{
+                return {
+                    key:'key',
+                    value: 'value',
+                    title: 'title'
+                }
             }
         },
         editable:{
@@ -116,6 +126,24 @@ export default {
                 return false
             }
         },
+        selectType:{
+            type:String,
+            default:()=>{
+                return 'checkbox'
+            }
+        },
+        selectedRowKeys:{
+            type:Array,
+            default:()=>{
+                return []
+            }
+        },
+        selectedRows:{
+            type:Array,
+            default:()=>{
+                return []
+            }
+        },
         beforeAdd: {
             type:[Boolean,Function],
             default:()=>{
@@ -144,7 +172,9 @@ export default {
     data() {
         return {
             id:this.$clap.helper.uuid(),
-            currentValue: []
+            currentValue: [],
+            currentSelectedRowKeys:[],
+            currentSelectedRows:[],
         }
     },
     computed: {
@@ -158,25 +188,19 @@ export default {
             let columns=[{
                 title: '行号',
                 align: 'center',
-                fixed: 'left',
+                fixed:'left',
                 width: 100,
                 customRender: (text, record, index) => {
                     return index + 1
                 },
             }];
             if(this.editable){
-                columns=[{
-                    align: 'center',
-                    fixed: 'left',
-                    width: 60,
-                    key: 'sortActions',
-                    scopedSlots: {customRender: 'sortActions'},
-                },...columns,{
+                columns=[...columns,{
                     title: '行操作',
                     align: 'center',
+                    fixed:'left',
                     width: 150,
-                    key: 'editActions',
-                    scopedSlots: {customRender: 'editActions'},
+                    scopedSlots: {customRender: 'leftActions'},
                 }]
             }
             columns=[...columns,...this.columns.reduce((preColumns,column,index)=>{
@@ -186,6 +210,7 @@ export default {
                         align: 'center',
                         key: column.field+index,
                         dataIndex: column.field,
+                        width: column.width,
                         ellipsis: true,
                         scopedSlots: {customRender: column.field + 'Render'+index}
                     }];
@@ -197,45 +222,65 @@ export default {
                 columns.push({
                     title: '操作',
                     align: 'center',
-                    key: 'actions',
-                    scopedSlots: {customRender: 'actions'},
+                    scopedSlots: {customRender: 'rightActions'},
                 })
             }
             return columns;
         },
         dataSource(){
-            const data=JSON.parse(JSON.stringify(this.currentValue))
+            const data=JSON.parse(JSON.stringify(this.currentValue));
             if(this.mode==='Tree'){
-                return this.$clap.helper.listToTree(data,0,{idKey:'_key',pIdKey:'p_key'})
+                const replaceFields = this.replaceFields ? {
+                    key: this.replaceFields.key ? this.replaceFields.key : 'key',
+                    value: this.replaceFields.value ? this.replaceFields.value : 'value',
+                    title: this.replaceFields.title ? this.replaceFields.title : 'title',
+                } : {key:'key', value: 'value',title: 'title' }
+                return this.$clap.helper.listToTree(data,0,{idKey:'_key',pIdKey:'p_key',replaceFields})
             }
             return data;
-        }
+        },
+        rowSelection() {
+            return {
+                fixed:true,
+                type:this.selectType,
+                selectedRowKeys:this.currentSelectedRowKeys,
+                onChange: (selectedRowKeys, selectedRows) => {
+                    this.currentSelectedRowKeys=selectedRowKeys;
+                    this.currentSelectedRows=[...this.currentSelectedRows.filter(item=>!selectedRows.map(item=>item._key).includes(item._key)),...selectedRows].filter(item=>selectedRowKeys.includes(item._key));
+                    this.$emit('selectChange',this.currentSelectedRowKeys,this.currentSelectedRows)
+                },
+                getCheckboxProps: record => ({
+                    props: {
+                        disabled: record._disabled, // Column configuration not to be checked
+                    },
+                }),
+            };
+        },
     },
     watch: {
         value: {
             async handler(value) {
-                this.setCurrentValue(value)
+                await this.setCurrentValue(value)
+            },
+            deep: true //true 深度监听
+        },
+        selectedRowKeys: {
+            async handler(value) {
+                await this.setCurrentSelectedRowKeys(value)
+            },
+            deep: true //true 深度监听
+        },
+        selectedRows: {
+            async handler(value) {
+                await this.setCurrentSelectedRows(value)
             },
             deep: true //true 深度监听
         }
     },
     created() {
         this.setCurrentValue(this.value);
-    },
-    mounted() {
-        let sortable = Sortable.create(document.getElementById(this.id).getElementsByClassName('ant-table-tbody')[0],{
-            group:'name',
-            sort: true,
-            handle: ".c-drag",
-            dataIdAttr: 'data-row-key',
-            onMove: function (/**Event*/evt) {
-
-            },
-            onEnd: function (/**Event*/evt) {
-                console.log(evt);
-            },
-        });
-        console.log(sortable)
+        this.setCurrentSelectedRowKeys(this.selectedRowKeys);
+        this.setCurrentSelectedRows(this.selectedRows)
     },
     methods: {
         getActionDisabled(event,record){
@@ -251,32 +296,52 @@ export default {
             return false
         },
         getColumnDisabled(column,record) {
+            if(this.disabled){
+                return true
+            }
             if(column.hasOwnProperty('disabled')){
-                return typeof column.disabled === 'function' ? column.disabled(record) : false
+                return typeof column.disabled === 'function' ? column.disabled(record) : column.disabled
             }
             return false;
         },
         getColumnVisible(column,record) {
             if(column.hasOwnProperty('rowVisible')){
-                return typeof column.rowVisible === 'function' ? column.rowVisible(record) : true
+                return typeof column.rowVisible === 'function' ? column.rowVisible(record) : column.rowVisible
             }
             return true;
         },
         getWidgetConfig(column,record) {
-            const widgetConfig={...column.widgetConfig};
-            widgetConfig.range=widgetConfig.range?widgetConfig.range:[];
-            widgetConfig.range= typeof widgetConfig.range === 'function' ? widgetConfig.range(record) : widgetConfig.range
+            const widgetConfig={...typeof column.widgetConfig === 'function'?column.widgetConfig():column.widgetConfig};
+            widgetConfig.range= typeof widgetConfig.range === 'function' ? widgetConfig.range(record) : widgetConfig.range;
+            widgetConfig.scope= typeof widgetConfig.scope === 'function' ? widgetConfig.scope(record) : widgetConfig.scope;
+            widgetConfig.beforeChange=()=>{
+                return widgetConfig.beforeChange ? async (params = record) => {await widgetConfig.beforeChange(params)} : true
+            }
             return widgetConfig;
         },
-        setCurrentValue(value) {
-            this.currentValue=value.map((item)=>{return this.mode==='Tree'?{...item,_key:item._key?item._key:(item._id?item._id:this.$clap.helper.uuid()),p_key:item.p_key?item.p_key:(item.p_id?item.p_id:0)}:{...item,_key:item._key?item._key:(item._id?item._id:this.$clap.helper.uuid())}});
+        async setCurrentValue(value) {
+            this.currentValue=value.map((item)=>{return this.mode==='Tree'?{...item,_key:item._key?item._key:(item._id?item._id:this.$clap.helper.uuid()),p_key:item.p_key?item.p_key:(item.p_id?item.p_id:'0')}:{...item,_key:item._key?item._key:(item._id?item._id:this.$clap.helper.uuid())}});
             if(this.editable&&this.currentValue.length===0){
-                this.currentValue = this.mode==='Tree'?[{ _key: this.$clap.helper.uuid(),p_key:0 }]: [{ _key: this.$clap.helper.uuid() }];
+                let record = this.mode==='Tree'?{ _key: this.$clap.helper.uuid(),p_key:0 }: { _key: this.$clap.helper.uuid() };
+                if (this.beforeAdd) {
+                    record=await this.beforeAdd(record,{record,index:0})
+                }
+                this.currentValue=[record];
             }
             this.handleInput()
         },
+        async setCurrentSelectedRowKeys(value){
+            this.currentSelectedRowKeys=value
+        },
+        async setCurrentSelectedRows(value){
+            this.currentSelectedRows=value
+        },
         handleInput() {
-            this.$emit('input', JSON.parse(JSON.stringify(this.currentValue)));
+            const value=JSON.stringify(this.currentValue);
+            if(JSON.stringify(this.value)!==value){
+                this.$emit('input',JSON.parse(value));
+                this.$emit('change',JSON.parse(value))
+            }
         },
         async handleAdd(record) {
             let Record=this.mode==='Tree'?{ _key: this.$clap.helper.uuid(),p_key:record.p_key }: { _key: this.$clap.helper.uuid() };
@@ -330,14 +395,14 @@ export default {
             this.handleInput()
             this.$emit('remove',record, index)
         },
-        handleChange(value, field, record) {
+        handleCellChange(value, record, column) {
             clearTimeout(this.timer)
             this.timer = setTimeout(() => {
                 //创建一个定时器，一秒钟执行一次
                 const index=this.currentValue.findIndex(item=>item._key===record._key)
-                this.currentValue[index][field] = value
-                this.handleInput()
-                this.$emit('change',this.currentValue, value, field, {record,index})
+                this.currentValue[index][column.field] = value;
+                column.onChange&&column.onChange(value,{record:this.currentValue[index],index},column);
+                this.handleInput();
             }, 100)
         }
     }

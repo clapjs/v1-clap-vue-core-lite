@@ -114,10 +114,10 @@ export default {
         currentPagination(){
             return {
                 onChange:(current, pageSize)=>{
-                    this.$emit('change',{current, pageSize})
+                    this.$emit('pagingChange',{current, pageSize})
                 },
                 onShowSizeChange:(current, pageSize)=>{
-                    this.$emit('change',{current, pageSize})
+                    this.$emit('pagingChange',{current, pageSize})
                 },
                 total:this.count,
                 ...this.pagination
