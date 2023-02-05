@@ -3,7 +3,7 @@
         <a-col flex="auto" span="1">
             <a-select ref="select" allow-clear :disabled="disabled" :mode="this.multiple?'multiple':'default'" show-search :value="currentValue" labelInValue style="width: 100%" @focus="onFocus" :not-found-content="null" :show-arrow="false" :filter-option="false" @search="search" @change="onChange">
                 <a-select-option v-for="item in records" :key="item._id" :value="item._id">
-                    {{$clap.helper.getJsonValue(item, replaceFields.label)}}
+                    {{$clap.helper.getJsonValue(item, dataTextFields)}}
                 </a-select-option>
             </a-select>
         </a-col>
@@ -58,13 +58,10 @@ export default {
                 return {}
             }
         },
-        replaceFields: {
-            type: Object,
+        dataTextFields: {
+            type: [String,Array],
             default(){
-                return {
-                    key:'_id',
-                    label: '_id'
-                }
+                return ['_id']
             }
         },
         beforeChange: {
@@ -73,7 +70,7 @@ export default {
                 return true
             }
         },
-        clap: {
+        pkg: {
             type: String,
             default: () => {
                 return '$clap'
@@ -94,7 +91,7 @@ export default {
         }
     },
     async mounted() {
-        this.instance = this.$clap.refer(this.refer, this.controlType,this.clap)
+        this.instance = this.$clap.refer(this.refer, this.controlType,this.pkg)
         this.instance.loadData = !!this.loadData ? this.loadData : this.instance.loadData;
         await this.setCurrentValue(!this.multiple?[this.value]:this.value)
     },
@@ -104,7 +101,7 @@ export default {
         },
         async refer(refer) {
             if (refer) {
-                this.instance = this.$clap.refer(refer, this.controlType,this.clap)
+                this.instance = this.$clap.refer(refer, this.controlType,this.pkg)
                 this.instance.loadData = this.loadData ? this.loadData : this.instance.loadData
             }
         }
@@ -150,14 +147,22 @@ export default {
             return result
         },
         async onClick() {
+            if(!this.refer){
+                this.$message.error('请先设置参照来源！');
+                return;
+            }
             if (this.disabled) {
                 return
+            }
+            if (!this.inspectFilter()) {
+                this.$refs.select.blur()
+                return;
             }
             this.$refs.select.blur();
             if(await this.beforeChange()){
                 await this.instance.modal({
-                    query: {filter:await this.$clap.helper.resolveFilter(this.filter), likeBy: this.replaceFields.label},
-                    replaceFields: this.replaceFields,
+                    query: {filter:await this.$clap.helper.resolveFilter(this.filter), likeBy: this.dataTextFields},
+                    dataTextFields: this.dataTextFields,
                     multiple: this.multiple,
                     selectedRowKeys: this.selectedRowKeys,
                     selectedRows: this.selectedRows,
@@ -171,6 +176,10 @@ export default {
             }
         },
         async onFocus() {
+            if(!this.refer){
+                this.$message.error('请先设置参照来源！');
+                return;
+            }
             if (!this.inspectFilter()) {
                 this.$refs.select.blur()
                 return;
@@ -185,7 +194,7 @@ export default {
             clearTimeout(this.timer)
             this.timer = setTimeout(async () => {
                 if (like) {
-                    const records = await this.instance.loadData({ filter:await this.$clap.helper.resolveFilter(this.filter), like, likeBy: this.replaceFields.label }).then(res => res.records)
+                    const records = await this.instance.loadData({ filter:await this.$clap.helper.resolveFilter(this.filter), like, likeBy: this.dataTextFields }).then(res => res.records)
                     if(this.like===like){
                         this.records=records;
                     }
@@ -222,7 +231,7 @@ export default {
             if (selectedRowKeys && selectedRowKeys[0]) {
                 this.selectedRowKeys=selectedRowKeys;
                 this.selectedRows=selectedRows?selectedRows:await this.instance.loadDataById(selectedRowKeys);
-                this.currentValue = !this.multiple ? { key: this.selectedRows[0]._id, label:this.$clap.helper.getJsonValue(this.selectedRows[0],this.replaceFields.label)  } : this.selectedRows.map(item => {return { key: item._id, label: this.$clap.helper.getJsonValue(item, this.replaceFields.label) }})
+                this.currentValue = !this.multiple ? { key: this.selectedRows[0]._id, label:this.$clap.helper.getJsonValue(this.selectedRows[0],this.dataTextFields)  } : this.selectedRows.map(item => {return { key: item._id, label: this.$clap.helper.getJsonValue(item, this.dataTextFields) }})
             } else {
                 this.selectedRowKeys=[];
                 this.selectedRows=[];

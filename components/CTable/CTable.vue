@@ -1,19 +1,22 @@
 <template>
-    <a-table :id="id" :columns="currentColumns" tableLayout="fixed" :scroll="scroll" rowKey="_key" defaultExpandAllRows :dataSource="dataSource" :rowSelection="editable?null:rowSelection" size="small" :pagination="editable?false:currentPagination" :loading="loading" @change="(pagination, filters, sorter)=>$emit('pagingChange',pagination, filters, sorter)" :customHeaderRow='customHeaderRow' :customRow='customRow'>
+    <a-table :id="id" :columns="currentColumns" tableLayout="fixed" :scroll="currentScroll" rowKey="_key" defaultExpandAllRows :dataSource="dataSource" :rowSelection="editable?null:rowSelection" size="small" :pagination="editable?false:currentPagination" :loading="loading" @change="(pagination, filters, sorter)=>$emit('pagingChange',pagination, filters, sorter)" :customHeaderRow='customHeaderRow' :customRow='customRow'>
         <template slot="leftActions" slot-scope="text, record, index">
             <a-space>
-                <a-tooltip><template slot="title"> 复制 </template><a-button icon="copy" size="small" :disabled="getActionDisabled('copy',record)"  @click="handleCopy(record)" /></a-tooltip>
-                <a-tooltip><template slot="title"> 增行 </template><a-button icon="plus" size="small" :disabled="getActionDisabled('add',record)" @click="handleAdd(record)" /></a-tooltip>
-                <a-tooltip><template slot="title"> 删行 </template><a-button icon="minus" size="small" :disabled="getActionDisabled('remove',record)"  @click="handleRemove(record)" /></a-tooltip>
-                <a-tooltip v-if="mode==='Tree'"><template slot="title"> 增行(子节点) </template><a-button icon="plus-circle" size="small" :disabled="getActionDisabled('addChild',record)"  @click="handleAddChild(record)" /></a-tooltip>
+                <a-tooltip><template slot="title"> 复制 </template><a-button icon="copy" size="small" :disabled="getEditButtonsDisabled('copy',record)"  @click="handleCopy(record)" /></a-tooltip>
+                <a-tooltip><template slot="title"> 增行 </template><a-button icon="plus" size="small" :disabled="getEditButtonsDisabled('add',record)" @click="handleAdd(record)" /></a-tooltip>
+                <a-tooltip><template slot="title"> 删行 </template><a-button icon="minus" size="small" :disabled="getEditButtonsDisabled('remove',record)"  @click="handleRemove(record)" /></a-tooltip>
+                <a-tooltip v-if="mode==='Tree'"><template slot="title"> 增行(子节点) </template><a-button icon="plus-circle" size="small" :disabled="getEditButtonsDisabled('addChild',record)"  @click="handleAddChild(record)" /></a-tooltip>
             </a-space>
         </template>
         <template v-for="(column,columnIndex) in columns" :slot="column.field + 'Render'+columnIndex" slot-scope="text, record, index">
-            <c-widget v-if="editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)" @change="(val)=>handleCellChange(val,record,column)"></c-widget>
+            <c-widget v-if="editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)" @change="(val,extra)=>handleCellChange(val,extra,record,column)"></c-widget>
             <c-widget-display v-else-if="!editable&&getColumnVisible(column,record)" :value="text" :widget="column.widget" :widget-config="getWidgetConfig(column,record)" :disabled="getColumnDisabled(column,record)"></c-widget-display>
         </template>
         <template slot="rightActions" slot-scope="value,record,index">
-            <a-dropdown>
+            <a-space v-if="buttonsStyle==='ButtonGroup'">
+                <a-button v-for="button of buttons" :key="button.event" type="primary" ghost size="small" :icon="button.icon" @click="()=>{$emit('buttonClick',button.event,record)}" :disabled="getButtonDisabled(button.event,record)">{{ button.name }}</a-button>
+            </a-space>
+            <a-dropdown v-else-if="buttonsStyle==='Dropdown'">
                 <a-icon type="ellipsis"/>
                 <a-menu slot="overlay" @click="({key})=>{$emit('buttonClick',JSON.parse(key).event,JSON.parse(key).record)}">
                     <template v-for="(button,index) of buttons"><a-menu-item :disabled="getButtonDisabled(button.event,record)" :key="JSON.stringify({event:button.event,record})"><a-icon :type="button.icon"></a-icon>{{button.name}}</a-menu-item><a-menu-divider v-if="index<=buttons.length-2"></a-menu-divider></template>
@@ -58,7 +61,13 @@ export default {
                 return {}
             }
         },
-        actionsDisabled: {
+        buttonsStyle: {
+            type: String,
+            default() {
+                return 'ButtonGroup'
+            }
+        },
+        editButtonsDisabled: {
             type: Object,
             default() {
                 return {}
@@ -219,13 +228,24 @@ export default {
                 }
             },[])]
             if(this.buttons.length>0){
-                columns.push({
+                const rightAction={
                     title: '操作',
                     align: 'center',
+                    fixed:'right',
                     scopedSlots: {customRender: 'rightActions'},
-                })
+                }
+                if(this.buttonsStyle==='ButtonGroup'){
+                    rightAction.width=this.buttons.length*80
+                }
+                columns.push(rightAction)
             }
             return columns;
+        },
+        currentScroll(){
+            return {
+                x:this.scroll.x?this.scroll.x:this.currentColumns.reduce((pre,cur)=>{return pre+cur.width},0),
+                y:this.scroll.y?this.scroll.y:500
+            }
         },
         dataSource(){
             const data=JSON.parse(JSON.stringify(this.currentValue));
@@ -235,7 +255,7 @@ export default {
                     value: this.replaceFields.value ? this.replaceFields.value : 'value',
                     title: this.replaceFields.title ? this.replaceFields.title : 'title',
                 } : {key:'key', value: 'value',title: 'title' }
-                return this.$clap.helper.listToTree(data,0,{idKey:'_key',pIdKey:'p_key',replaceFields})
+                return this.$clap.helper.listToTree(data,0,{key:'_key',pKey:'p_key',replaceFields})
             }
             return data;
         },
@@ -283,9 +303,9 @@ export default {
         this.setCurrentSelectedRows(this.selectedRows)
     },
     methods: {
-        getActionDisabled(event,record){
-            if(this.actionsDisabled.hasOwnProperty(event)){
-                return typeof this.actionsDisabled[event]==='function'?this.actionsDisabled[event](record):this.actionsDisabled[event]
+        getEditButtonsDisabled(event,record){
+            if(this.editButtonsDisabled.hasOwnProperty(event)){
+                return typeof this.editButtonsDisabled[event]==='function'?this.editButtonsDisabled[event](record):this.editButtonsDisabled[event]
             }
             return false
         },
@@ -311,9 +331,8 @@ export default {
             return true;
         },
         getWidgetConfig(column,record) {
-            const widgetConfig={...typeof column.widgetConfig === 'function'?column.widgetConfig():column.widgetConfig};
+            const widgetConfig={...typeof column.widgetConfig === 'function'?column.widgetConfig(record):column.widgetConfig};
             widgetConfig.range= typeof widgetConfig.range === 'function' ? widgetConfig.range(record) : widgetConfig.range;
-            widgetConfig.scope= typeof widgetConfig.scope === 'function' ? widgetConfig.scope(record) : widgetConfig.scope;
             widgetConfig.beforeChange=()=>{
                 return widgetConfig.beforeChange ? async (params = record) => {await widgetConfig.beforeChange(params)} : true
             }
@@ -395,14 +414,14 @@ export default {
             this.handleInput()
             this.$emit('remove',record, index)
         },
-        handleCellChange(value, record, column) {
+        handleCellChange(value,extra, record, column) {
             clearTimeout(this.timer)
             this.timer = setTimeout(() => {
                 //创建一个定时器，一秒钟执行一次
                 const index=this.currentValue.findIndex(item=>item._key===record._key)
                 this.currentValue[index][column.field] = value;
-                column.onChange&&column.onChange(value,{record:this.currentValue[index],index},column);
                 this.handleInput();
+                column.onChange&&column.onChange(value,extra,{record:this.currentValue[index],index},column);
             }, 100)
         }
     }

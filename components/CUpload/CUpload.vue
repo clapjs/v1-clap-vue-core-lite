@@ -1,7 +1,7 @@
 <template>
     <div>
         <template v-if="mode==='Button'">
-            <a-upload :multiple="multiple" :file-list="fileList" :action="this.$core.url.file.upload" @change="change" :disabled="disabled">
+            <a-upload :multiple="multiple" :file-list="fileList" :action="$clap?.file.URL_UPLOAD" @change="change" :disabled="disabled">
                 <a-button icon="file" v-if="disabled">查看文件</a-button>
                 <a-button icon="upload" v-else>点击上传</a-button>
             </a-upload>
@@ -10,7 +10,7 @@
             <a-button icon="file" v-if="disabled">查看文件</a-button>
             <a-button icon="upload" v-else @click="visible=true">点击上传</a-button>
             <a-modal title="拖拽上传" :visible="visible" forceRender :width="768" @ok="visible = false" @cancel="visible = false">
-                <a-upload-dragger name="file" :multiple="multiple" :action="this.$core.url.file.upload" :file-list="fileList" @change="handleChange" :disabled="disabled">
+                <a-upload-dragger name="file" :multiple="multiple" :action="$clap?.file.URL_UPLOAD" :file-list="fileList" @change="change" :disabled="disabled">
                     <p class="ant-upload-drag-icon">
                         <a-icon type="inbox"/>
                     </p>
@@ -76,7 +76,7 @@ export default {
                     uid : item._id,
                     name: item.fileName,
                     status: 'done',
-                    url: this.$clap.url.file.preview + item._id
+                    url: this.$clap.file.URL_PREVIEW + item._id
                 }
             });
         },
@@ -102,7 +102,7 @@ export default {
                             uid : item._id,
                             name: item.fileName,
                             status: 'done',
-                            url: this.$clap.url.file.preview + item._id
+                            url: this.$clap.file.URL_PREVIEW + item._id
                         }
                     });
                     this.fileList=this.multiple?[...this.fileList,...fileList]:fileList

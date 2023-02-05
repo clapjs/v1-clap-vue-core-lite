@@ -1,22 +1,23 @@
 <template>
-    <a-card :bordered="false">
+    <a-card :bordered="false" style="height: 100%">
         <a-space slot="title">
             <slot name="title"></slot>
-            <a-button v-if="buttons.length===0" :type="buttons[0].type" :icon="buttons[0].icon"  @click="onButtonClick(buttons[0].event)" :disabled="getButtonDisabled(buttons[0].event)">{{ buttons[0].name }}</a-button>
+            <a-button v-if="buttons.length===0" :type="buttons[0].type" :icon="buttons[0].icon"  @click="onButtonClick(buttons[0].event,selectedRows)" :disabled="getButtonDisabled(buttons[0].event,selectedRows)">{{ buttons[0].name }}</a-button>
             <a-button-group v-else>
-                <a-button v-for="button of buttons" :key="button.event" type="primary" :icon="button.icon" @click="onButtonClick('onButtonClick',button.event)" :disabled="getButtonDisabled(button.event,selectedRows)">{{ button.name }}</a-button>
+                <a-button v-for="button of buttons" :key="button.event" :type="button.type?button.type:'primary'" :icon="button.icon" @click="onButtonClick('onButtonClick',button.event,selectedRows)" :disabled="getButtonDisabled(button.event,selectedRows)">{{ button.name }}</a-button>
             </a-button-group>
         </a-space>
         <a-space slot="extra">
             <slot name="extra"></slot>
             <a-input-search allowClear  placeholder="请输入关键字" enter-button style="width: 200px" @search="onSearch"/>
+            <a-alert :message="selectedRows.length>0?`已选中${selectedRows.length}条数据`:'未选中任何数据'" type="info" show-icon/>
         </a-space>
-        <c-table :value="data" v-if="listCfg.mode==='Table'||listCfg.mode==='Tree'" :mode="listCfg.mode"  :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :columns="listColumns" :replaceFields="listCfg.replaceFields" :count="count" :loading="loading" :pagination="pagination" @pagingChange="onPagingChange" @buttonClick="onButtonClick" :customRow='customRow' @selectChange="onSelectChange"/>
+        <c-table :value="data" v-if="listCfg.mode==='Table'||listCfg.mode==='Tree'" :mode="listCfg.mode"  :buttons="rowButtons" :buttons-style="extraRowButtonsStyle" :buttons-disabled="buttonsDisabled" :columns="listColumns" :replaceFields="listCfg.replaceFields" :count="count" :loading="loading" :pagination="pagination" @pagingChange="onPagingChange" @buttonClick="onButtonClick" :customRow='customRow' @selectChange="onSelectChange"/>
         <c-list :value="data" v-else-if="listCfg.mode==='List'" :buttons="rowButtons" :buttons-disabled="buttonsDisabled" :icon="listCfg.icon" :grid="listCfg.grid" :replaceFields="listCfg.replaceFields" :count="count" :loading="loading" :pagination="pagination" @pagingChange="onPagingChange" @buttonClick="onButtonClick"/>
         <a-modal destroyOnClose v-if="editCfg.mode==='Modal'" :title="editData._id?'修改'+name:'新增'+name" v-model="visible" :width="editCfg.width" :maskClosable="false" destroyOnClose @ok="conserve(editData)" @cancel="resetForm">
             <c-form ref="form" v-model="editData" :columns="editColumns"/>
         </a-modal>
-        <a-drawer destroyOnClose v-else :title="editData._id?'修改'+name:'新增'+name" placement="right" :visible="visible" @close="resetForm" :width="editCfg.width">
+        <a-drawer destroyOnClose v-else :title="editData._id?'修改'+name:'新增'+name" placement="bottom" :visible="visible" @close="resetForm" :height="editCfg.width">
             <c-form ref="form" v-model="editData" :columns="editColumns"/>
             <div class="drawer-footer">
                 <a-button :style="{ marginRight: '8px' }" @click="resetForm">取消</a-button>
@@ -29,7 +30,6 @@
 <script>
 import CWidget from "../CWidget/CWidget";
 import CWidgetDisplay from "../CWidgetDisplay/CWidgetDisplay";
-
 export default {
     name: "CCrud",
     components: {CWidgetDisplay, CWidget},
@@ -62,6 +62,12 @@ export default {
             type: Array,
             default: () => {
                 return []
+            }
+        },
+        extraRowButtonsStyle: {
+            type: String,
+            default: () => {
+                return 'ButtonGroup'
             }
         },
         buttonsDisabled: {
@@ -226,7 +232,7 @@ export default {
         buttons() {
             return [{event: 'create', name: '新增', icon: 'plus'}, {
                 event: 'loadData',
-                name: '刷新',
+                name: '重载',
                 icon: 'sync'
             }, ...this.extraButtons]
         },
@@ -254,8 +260,8 @@ export default {
         !this.getButtonDisabled('loadData',{})&&this.loadData();
     },
     methods: {
-        setFormData(cb) {
-            this.editData = JSON.parse(JSON.stringify(typeof cb==='function'?cb(this.editData):cb))
+        async setFormData(cb) {
+            this.editData = JSON.parse(JSON.stringify(typeof cb==='function'?await cb(this.editData):await cb));
         },
         setQuery(query) {
             if(!query)return;

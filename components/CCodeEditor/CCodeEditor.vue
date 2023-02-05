@@ -1,5 +1,13 @@
 <template>
-    <codemirror v-model="currentValue" @keyup.native.ctrl.83="save" :options="cmOption" />
+    <div>
+        <template v-if="modal">
+            <a-button @click="visible = true">编辑</a-button>
+            <a-modal title="代码编辑" :visible="visible" :width="768" @ok="visible = false" @cancel="visible = false">
+                <codemirror v-model="currentValue" @keyup.native.ctrl.83="save" :options="cmOption" style="font-size: 14px;" />
+            </a-modal>
+        </template>
+        <codemirror v-else v-model="currentValue" @keyup.native.ctrl.83="save" :options="cmOption" style="font-size: 14px;" />
+    </div>
 </template>
 
 <script>
@@ -44,24 +52,28 @@ import'codemirror/addon/fold/indent-fold.js'
 import'codemirror/addon/fold/markdown-fold.js'
 import'codemirror/addon/fold/xml-fold.js'
 
+const jsBeautify = require('js-beautify');
+
 export default {
-    name: 'CEditorCode',
+    name: 'CCodeEditor',
     components: {
         codemirror
     },
     props: {
-        /**
-         * @model
-         */
         value: {
             type: String,
             default: () => {
-                return {}
+                return ''
             }
+        },
+        modal: {
+            type: Boolean,
+            default: false
         }
     },
     data() {
         return {
+            visible: false,
             currentValue: '',
             cmOption: {
                 tabSize: 4,
@@ -89,17 +101,20 @@ export default {
     },
     watch: {
         value(value) {
-            this.currentValue = value
+            this.setCurrentValue(value);
         }
     },
     mounted() {
-        this.currentValue = this.value;
+        this.setCurrentValue(this.value)
         this.$nextTick(()=>{
             this.cmOption.styleSelectedText = true;
             this.cmOption.styleActiveLine = true
         })
     },
     methods: {
+        setCurrentValue(value){
+             this.currentValue=jsBeautify.js(value)
+        },
         save() {
             this.$emit('input', this.currentValue)
             this.$emit('change', this.currentValue)

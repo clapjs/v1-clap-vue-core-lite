@@ -11,7 +11,7 @@ const Refer= (Vue)=>{
                 <span>已选中{{selectedRows.length}}项:</span>
                 <template v-for="row in selectedRows">
                     <a-tag color="blue" closable @close="onTagClose(row._id)" style="margin: 0 6px 6px 0" :key="row._id">
-                        {{$clap.helper.getJsonValue(row, replaceFields.label)}}
+                        {{$clap.helper.getJsonValue(row, dataTextFields)}}
                     </a-tag>
                 </template>
             </a-row>
@@ -31,11 +31,8 @@ const Refer= (Vue)=>{
             return {
                 visible: false,
                 loading: false,
-                replaceFields: {
-                    key:'_id',
-                    label: '_id'
-                },
                 listConfig: {},
+                dataTextFields: '_id',
                 query: {},
                 count: 0,
                 records: [],
@@ -151,7 +148,7 @@ const Refer= (Vue)=>{
             query.order = !query.order ? '-_id' : query.order
             query.filter = query.filter ? { $and: [query.filter, filter] } : filter;
             query.likeBy = query.likeBy ? query.likeBy : '';
-            query.likeBy = [...new Set([...query.likeBy.split(','), ...config.listConfig.columns.filter(el => el.field !== 'p_id' && el.widget === 'String' && el.fuzzyQuery).map(el => el.field)])].join(',');
+            query.likeBy = [...new Set([...Array.isArray(query.likeBy)?query.likeBy:query.likeBy.split(','), ...config.listConfig.columns.filter(el => el.field !== 'p_id' && el.widget === 'String' && el.fuzzyQuery).map(el => el.field)])].join(',');
             return query;
         }
         let loadData = async query => {
@@ -172,7 +169,7 @@ const Refer= (Vue)=>{
                     listConfig:config.listConfig,
                     query: options.query,
                     multiple: options.multiple,
-                    replaceFields: options.replaceFields,
+                    dataTextFields: options.dataTextFields,
                     selectedRowKeys: options.selectedRowKeys ? options.selectedRowKeys : [],
                     selectedRows: options.selectedRows ? options.selectedRows : [],
                     onOk: options.onOk ? options.onOk : () => {},

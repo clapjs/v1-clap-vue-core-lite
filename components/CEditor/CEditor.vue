@@ -59,32 +59,19 @@ export default {
         }
     },
     props: {
-        /**
-         * @model
-         */
         value: {
             type: String,
         },
-        /**
-         * @model
-         */
         placeholder: {
             type: String,
             default(){
-                return '富文本'
+                return '文档编辑'
             }
         },
-        /**
-         * 是否禁用
-         * @values false, true
-         */
         disabled: {
             type: Boolean,
             default: false
         },
-        /**
-         * @values false, true
-         */
         modal: {
             type: Boolean,
             default: false
@@ -138,19 +125,7 @@ export default {
         onChange(editor) {
             const value = editor.getHtml();
             this.currentText=editor.getText();
-            /**
-             * input 事件
-             *
-             * @event input
-             * @type {string}
-             */
             this.$emit('input', value)
-            /**
-             * change 事件
-             *
-             * @event change
-             * @type {string}
-             */
             this.$emit('change', value)
         },
         customPaste(editor, event, callback) {

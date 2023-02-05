@@ -14,7 +14,7 @@
 <script>
 import { Sketch } from 'vue-color'
 export default {
-    name: 'CPickerColor',
+    name: 'CColorPicker',
     components: { Sketch },
     props: {
         // 当前颜色值

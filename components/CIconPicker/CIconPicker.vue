@@ -33,7 +33,7 @@
 <script>
     import IconList from "./iconPark";
     export default {
-        name: "CPickerIcon",
+        name: "CIconPicker",
         props:{
             value:{
                 type:String,

@@ -1,29 +1,35 @@
 <template>
-    <div style="padding: 12px">
-        <a-row type="flex" justify="center" :gutter="12" v-for="(stages, index) of currentValue" :key="'or' + index" align="bottom">
+    <div>
+        <template v-if="mode==='modal'">
+            <a-button :disabled="disabled" @click="visible=true">设置</a-button>
+            <a-modal destroyOnClose :title="'设置'" v-model="visible" :width="1024" :maskClosable="false" destroyOnClose @ok="visible=false" @cancel="visible=false">
+                <c-filter-editor :value="value" :fields="fields" @change="handleInput"></c-filter-editor>
+            </a-modal>
+        </template>
+        <a-row v-else type="flex" justify="center" :gutter="12" v-for="(stages, index) of currentValue" :key="'or' + index" align="bottom">
             <a-col :span="22">
                 <a-row :gutter="4" style="margin-top: 6px" type="flex" justify="center" v-for="(stage, cIndex) of stages" :key="'and' + cIndex">
                     <a-col :span="2">
                         <a-icon type="minus" style="margin: 10px" @click="remove(index, cIndex)" v-if="stages.length > 1 || currentValue.length > 1" />
                     </a-col>
                     <a-col :span="8">
-                        <c-widget :style="style" v-model="stage.key" widget="Select" :widgetConfig="{mode:'tree',treeData:$clap.helper.listToTree(fields,0)}" @change="val => onChange(val, stage)" />
+                        <c-widget :style="style" v-model="stage.key" widget="Select" :disabled="disabled" :widgetConfig="{mode:'tree',treeData:$clap.helper.listToTree(fields,'0',{replaceFields:{title:'field,name'}}),replaceFields:{value:'field'}}" @change="val => onChange(val, stage)" />
                     </a-col>
                     <a-col :span="4">
-                        <a-select v-model="stage.symbol" :style="style" @change="() => onChange(stage.key, stage)">
+                        <a-select v-model="stage.symbol" :style="style" @change="() => onChange(stage.key, stage)" :disabled="disabled">
                             <a-select-option v-for="symbol in stage.symbols" :value="symbol.value" :key="symbol.value">{{ symbol.label }}</a-select-option>
                         </a-select>
                     </a-col>
-                    <a-col :span="8" v-if="stage.key">
-                        <c-widget :style="style" v-model="stage.value" :widget="stage.widget" :widgetConfig="stage.widgetConfig"  v-else />
+                    <a-col :span="8">
+                        <c-widget :style="style" v-model="stage.value" :widget="stage.widget" :widgetConfig="stage.widgetConfig" :disabled="disabled"/>
                     </a-col>
                     <a-col :span="2">
-                        <a-button type="primary" ghost @click="stages.push(defaultValue)">且</a-button>
+                        <a-button type="primary" ghost @click="stages.push(JSON.parse(JSON.stringify(defaultValue)))" :disabled="disabled">且</a-button>
                     </a-col>
                 </a-row>
             </a-col>
             <a-col :span="2">
-                <a-button type="danger" ghost @click="currentValue.push([defaultValue])">或</a-button>
+                <a-button type="danger" ghost @click="currentValue.push([JSON.parse(JSON.stringify(defaultValue))])" :disabled="disabled">或</a-button>
             </a-col>
             <a-divider v-if="index < currentValue.length - 1">或</a-divider>
         </a-row>
@@ -41,6 +47,7 @@ export default {
     },
     data() {
         return {
+            visible: false,
             style: { width: '100%' },
             currentValue: [[{ field: { widget: 'String' }, symbol: '$eq' }]],
             defaultValue: {
@@ -56,11 +63,19 @@ export default {
         }
     },
     props: {
+        mode:{
+            type:String,
+            default:'default'
+        },
         value: {
             type: Array,
             default: function () {
                 return []
             }
+        },
+        disabled:{
+            type:Boolean,
+            default:false
         },
         fields: {
             type: Array,
@@ -84,13 +99,6 @@ export default {
         }
     },
     methods: {
-        setCurrentValue() {
-            this.currentValue = this.value.length > 0 && this.value[0].length > 0 ? this.value : [[this.defaultValue]]
-        },
-        handleInput() {
-            this.currentValue = JSON.parse(JSON.stringify(this.currentValue))
-            this.$emit('input', this.currentValue)
-        },
         onChange(key, stage) {
             const field = this.fields.filter(item => item.field === key)[0];
             stage.widget=field.widget;
@@ -114,11 +122,14 @@ export default {
             }
             delete stage.value
             stage.value = ['$in', '$nin'].includes(stage.symbol) ? [] : ''
-            this.handleInput()
+            this.handleInput(this.currentValue)
         },
-        onDeselect(value, stage) {
-            stage.range.splice(stage.range.indexOf(value), 1)
-            this.handleInput()
+        setCurrentValue() {
+            this.currentValue = this.value.length > 0 && this.value[0].length > 0 ? this.value : [[JSON.parse(JSON.stringify(this.defaultValue))]]
+        },
+        handleInput(value) {
+            this.$emit('input', JSON.parse(JSON.stringify(value)));
+            this.$emit('change', value)
         },
         remove(indexX, indexY) {
             if (this.currentValue[indexX].length === 1) {
